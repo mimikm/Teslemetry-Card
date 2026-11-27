@@ -1,6 +1,6 @@
 {
   "name": "Teslemetry Card",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "author": "Dom Martyniak",
   "description": "Home Assistant card for the Teslemetry integration",
   "type": "module"

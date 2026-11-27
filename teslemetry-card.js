@@ -4,7 +4,7 @@
  * MIT License · (c) Dominik Martyniak (mimikm)
  */
 
-const CARD_VERSION = '0.1.1';
+const CARD_VERSION = '0.2.0';
 
 /* ------------------------------------------------------------------ */
 /* Entity map: key -> [domain, entity_id suffixes, translation keys]   */
