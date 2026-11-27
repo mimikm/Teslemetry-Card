@@ -493,10 +493,14 @@ class TeslemetryCard extends HTMLElement {
           const u = this._u('tpms_' + k);
           const dec = /psi/i.test(u) ? 0 : 1;
           o[k] = { text: `${n.toFixed(dec)}${u ? ' ' + u : ''}`, warn: this._isOn('tpms_warn_' + k) };
+        } else {
+          o[k] = { text: '—', missing: true };
         }
         return o;
       }, {}) : {},
     };
+    // Teslemetry ships the tyre pressure sensors disabled — say how to turn them on
+    const tyresOff = cfg.show_tyres && !['fl', 'fr', 'rl', 'rr'].some((k) => this._ents['tpms_' + k]);
 
     /* header sub-line */
     const sub = [];
@@ -625,6 +629,8 @@ class TeslemetryCard extends HTMLElement {
         ${lockBtn}
       </div>
       <div class="stage ${model === 'custom' ? 'is-photo' : ''}">${model === 'custom' ? this._photoHero(st) : this._carSvg(st)}</div>
+      ${tyresOff ? `<div class="hint" data-nav="${this._deviceId ? `/config/devices/device/${esc(this._deviceId)}` : '/config/integrations/integration/teslemetry'}">
+        <ha-icon icon="mdi:car-tire-alert"></ha-icon><span>Turn on the <b>Tire pressure</b> sensors in Teslemetry to see tyre pressures</span><ha-icon icon="mdi:chevron-right"></ha-icon></div>` : ''}
       ${batteryHtml}
       ${climateHtml}
       ${actionsHtml}
@@ -720,8 +726,11 @@ class TeslemetryCard extends HTMLElement {
     const url = this._imageUrl();
     const chip = (key, icon, text, cls = '') => `<span class="pchip ${cls}" data-more="${key}"><ha-icon icon="${icon}"></ha-icon>${text}</span>`;
     const chips = [];
-    if (st.charging) chips.push(chip('charging', 'mdi:lightning-bolt', 'Charging', 'ok'));
-    else if (st.cable) chips.push(chip('charge_cable', 'mdi:power-plug', 'Plugged in', 'acc'));
+    // charging state already shows in the battery section
+    if (!this._config.show_charging) {
+      if (st.charging) chips.push(chip('charging', 'mdi:lightning-bolt', 'Charging', 'ok'));
+      else if (st.cable) chips.push(chip('charge_cable', 'mdi:power-plug', 'Plugged in', 'acc'));
+    }
     if (st.sentry) chips.push(chip('sentry', 'mdi:cctv', 'Sentry', 'danger'));
     if (st.climateOn) chips.push(chip('climate', 'mdi:fan', st.heating ? 'Heating' : 'Cooling', st.heating ? 'heat' : 'cool'));
     const openDoors = Object.entries(st.doors).filter(([, v]) => v).map(([k]) => k);
@@ -733,17 +742,28 @@ class TeslemetryCard extends HTMLElement {
     if (st.sunroof) chips.push(chip('sunroof', 'mdi:car-select', 'Sunroof open', 'warn'));
     if (st.port && !st.cable) chips.push(chip('charge_port', 'mdi:ev-plug-type2', 'Port open', 'acc'));
 
-    const tyre = (k, pos) => {
+    const tyre = (k) => {
       const t = st.tyres[k];
-      return t ? `<span class="ptyre ${pos} ${t.warn ? 'warn' : ''}" data-more="tpms_${k}"><small>${k.toUpperCase()}</small>${esc(t.text)}</span>` : '';
+      return `<span class="pt ${k} ${t.warn ? 'warn' : ''} ${t.missing ? 'missing' : ''}" data-more="tpms_${k}"><small>${k.toUpperCase()}</small><b>${esc(t.text)}</b></span>`;
     };
+    const tyrePanel = st.tyres.fl ? `
+      <div class="ptyres">
+        ${tyre('fl')}
+        <svg class="pt-car" viewBox="0 0 44 76" aria-hidden="true">
+          <rect x="2" y="12" width="7" height="14" rx="2.5" class="${st.tyres.fl.warn ? 'w' : ''}"/><rect x="35" y="12" width="7" height="14" rx="2.5" class="${st.tyres.fr.warn ? 'w' : ''}"/>
+          <rect x="2" y="50" width="7" height="14" rx="2.5" class="${st.tyres.rl.warn ? 'w' : ''}"/><rect x="35" y="50" width="7" height="14" rx="2.5" class="${st.tyres.rr.warn ? 'w' : ''}"/>
+          <path d="M22 2 C33 2 38 7 38 16 L38 62 C38 70 33 74 22 74 C11 74 6 70 6 62 L6 16 C6 7 11 2 22 2 Z" class="body"/>
+          <path d="M12 22 C16 19 28 19 32 22 L31 50 C27 52 17 52 13 50 Z" class="glass"/>
+        </svg>
+        ${tyre('fr')}${tyre('rl')}${tyre('rr')}
+      </div>` : '';
     const h = Number(this._config.image_height) || 190;
     return `
       <div class="photo ${st.charging ? 'charging' : ''} ${st.sentry ? 'sentry' : ''}" style="--ph:${h}px">
         ${url ? `<img src="${esc(url)}" alt="" draggable="false">` : `<div class="ph-empty"><ha-icon icon="mdi:image-outline"></ha-icon></div>`}
-        ${tyre('fl', 'tl')}${tyre('fr', 'tr')}${tyre('rl', 'bl')}${tyre('rr', 'br')}
       </div>
-      ${chips.length ? `<div class="pchips">${chips.join('')}</div>` : ''}`;
+      ${chips.length ? `<div class="pchips">${chips.join('')}</div>` : ''}
+      ${tyrePanel}`;
   }
 
   _carSvg(st) {
@@ -816,7 +836,7 @@ class TeslemetryCard extends HTMLElement {
       const t = st.tyres[k];
       if (!t) return '';
       const w = Math.max(44, t.text.length * 6.6 + 14);
-      return `<g class="tyre ${t.warn ? 'warn' : ''}" data-more="tpms_${k}">
+      return `<g class="tyre ${t.warn ? 'warn' : ''} ${t.missing ? 'missing' : ''}" data-more="tpms_${k}">
         <rect x="${x - w / 2}" y="${ly - 10}" width="${w}" height="20" rx="10"/>
         <text x="${x}" y="${ly + 4}" text-anchor="middle">${esc(t.text)}</text></g>`;
     };
@@ -955,11 +975,22 @@ class TeslemetryCard extends HTMLElement {
     .photo img { position:relative; z-index:1; max-width:100%; max-height:100%; object-fit:contain; user-select:none; filter:drop-shadow(0 10px 14px rgba(0,0,0,.3)); }
     .ph-empty { display:grid; place-items:center; width:100%; height:100%; border-radius:16px; border:1.5px dashed rgba(127,127,127,.35);
       color:var(--secondary-text-color); --mdc-icon-size:40px; }
-    .ptyre { position:absolute; z-index:2; display:flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px; font-size:.76em; font-weight:500;
-      background:rgba(127,127,127,.16); border:.8px solid rgba(127,127,127,.25); color:var(--primary-text-color); cursor:pointer; backdrop-filter:blur(6px); }
-    .ptyre small { font-size:.85em; opacity:.6; font-weight:600; }
-    .ptyre.warn { background:rgba(229,72,77,.22); border-color:#e5484d; color:#e5484d; }
-    .ptyre.tl { top:0; left:0; } .ptyre.tr { top:0; right:0; } .ptyre.bl { bottom:0; left:0; } .ptyre.br { bottom:0; right:0; }
+    .ptyres { display:grid; grid-template-columns:1fr auto 1fr; grid-template-rows:auto auto; align-items:center; gap:6px 12px;
+      max-width:300px; margin:8px auto 14px; }
+    .ptyres .pt-car { grid-column:2; grid-row:1 / span 2; width:34px; height:58px; }
+    .pt-car rect { fill:#2a2c31; } .pt-car rect.w { fill:#e5484d; }
+    .pt-car .body { fill:rgba(127,127,127,.28); stroke:rgba(127,127,127,.45); stroke-width:1; } .pt-car .glass { fill:rgba(0,0,0,.35); }
+    .pt { display:flex; flex-direction:column; line-height:1.15; padding:5px 10px; border-radius:12px; background:rgba(127,127,127,.1); cursor:pointer; }
+    .pt.fl, .pt.rl { text-align:right; align-items:flex-end; } .pt.fr, .pt.rr { align-items:flex-start; }
+    .pt.fl { grid-column:1; grid-row:1; } .pt.fr { grid-column:3; grid-row:1; } .pt.rl { grid-column:1; grid-row:2; } .pt.rr { grid-column:3; grid-row:2; }
+    .pt small { font-size:.68em; font-weight:600; letter-spacing:.6px; color:var(--secondary-text-color); }
+    .pt b { font-size:.92em; font-weight:600; color:var(--primary-text-color); }
+    .pt.warn { background:rgba(229,72,77,.16); } .pt.warn b, .pt.warn small { color:#e5484d; }
+    .pt.missing b { color:var(--secondary-text-color); font-weight:400; }
+    .tyre.missing text { fill:var(--secondary-text-color); } .tyre.missing rect { fill:rgba(127,127,127,.08); }
+    .hint { display:flex; align-items:center; gap:8px; margin:6px 0 2px; padding:8px 10px; border-radius:12px; cursor:pointer;
+      background:rgba(var(--tc-acc-rgb),.1); color:var(--secondary-text-color); font-size:.8em; --mdc-icon-size:18px; }
+    .hint ha-icon:first-child { color:var(--tc-accent); } .hint span { flex:1; } .hint b { color:var(--primary-text-color); font-weight:500; }
     .pchips { display:flex; flex-wrap:wrap; justify-content:center; gap:6px; margin:8px 10px 6px; }
     .pchip { display:inline-flex; align-items:center; gap:4px; padding:4px 10px 4px 7px; border-radius:999px; font-size:.78em; font-weight:500; cursor:pointer;
       background:rgba(127,127,127,.13); color:var(--secondary-text-color); --mdc-icon-size:16px; }
@@ -1087,6 +1118,12 @@ class TeslemetryCard extends HTMLElement {
     const actEl = path.find((n) => n.dataset?.act);
     const tempEl = path.find((n) => n.dataset?.temp);
     const moreEl = path.find((n) => n.dataset?.more || n.getAttribute?.('data-more'));
+    const navEl = path.find((n) => n.dataset?.nav);
+    if (navEl) {
+      history.pushState(null, '', navEl.dataset.nav);
+      window.dispatchEvent(new CustomEvent('location-changed', { detail: { replace: false } }));
+      return;
+    }
     if (actEl) { if (!actEl.disabled) this._doAction(actEl.dataset.act); return; }
     if (tempEl) { if (!tempEl.disabled) this._bumpTemp(parseFloat(tempEl.dataset.temp)); return; }
     if (moreEl) this._more(moreEl.dataset?.more || moreEl.getAttribute('data-more'));
@@ -1207,7 +1244,7 @@ const editorSchema = (data) => [
   { name: 'name', selector: { text: {} } },
   { name: 'model', selector: { select: { mode: 'dropdown', options: MODEL_OPTIONS } } },
   ...(data.model === 'custom' ? [
-    { name: 'image', selector: { image: {} } },
+    { name: 'image', selector: { text: {} } },
     { name: 'image_height', selector: { number: { min: 100, max: 400, step: 10, mode: 'slider', unit_of_measurement: 'px' } } },
   ] : [
     {
@@ -1244,7 +1281,7 @@ const editorSchema = (data) => [
 const EDITOR_LABELS = {
   device_id: 'Vehicle', name: 'Name (optional)', car_color: 'Paint colour (optional, e.g. #1f3b6e)',
   accent_color: 'Accent colour (optional)', drive_side: 'Drive side',
-  model: 'Car picture', image: 'Your picture (upload or URL)', image_height: 'Picture height',
+  model: 'Car picture', image: 'Picture URL or /local/ path (or upload below)', image_height: 'Picture height',
   show_tyres: 'Tyre pressures', show_charging: 'Battery & charging', show_charge_limit: 'Charge limit slider',
   show_charge_current: 'Charge current slider', show_climate: 'Climate', show_actions: 'Buttons',
   show_footer: 'Footer (odometer, software)', confirm_actions: 'Tap twice to unlock / open', actions: 'Buttons to show',
@@ -1261,6 +1298,12 @@ class TeslemetryCardEditor extends HTMLElement {
     if (this._form) this._form.hass = hass; else this._render();
   }
 
+  _emit(cfg) {
+    this._config = cfg;
+    this._render();
+    this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: cfg }, bubbles: true, composed: true }));
+  }
+
   _render() {
     if (!this._hass || !this._config) return;
     if (!this._form) {
@@ -1268,14 +1311,13 @@ class TeslemetryCardEditor extends HTMLElement {
       this._form.computeLabel = (s) => EDITOR_LABELS[s.name] ?? s.name;
       this._form.addEventListener('value-changed', (e) => {
         const cfg = { ...e.detail.value };
-        Object.keys(cfg).forEach((k) => { if (cfg[k] === '' || cfg[k] === undefined) delete cfg[k]; });
+        Object.keys(cfg).forEach((k) => { if (cfg[k] === '' || cfg[k] === undefined || cfg[k] === null) delete cfg[k]; });
         if (cfg.model !== 'custom') { delete cfg.image; delete cfg.image_height; }
         if (cfg.model === 'auto') delete cfg.model;
-        this._config = cfg;
-        this._render();
-        this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: cfg }, bubbles: true, composed: true }));
+        this._emit(cfg);
       });
       this.appendChild(this._form);
+      this._buildUpload();
     }
     const data = {
       show_tyres: true, show_charging: true, show_charge_limit: true, show_charge_current: false,
@@ -1286,6 +1328,94 @@ class TeslemetryCardEditor extends HTMLElement {
     this._form.hass = this._hass;
     this._form.schema = editorSchema(data);
     this._form.data = data;
+    this._renderUpload(data);
+  }
+
+  /* "Upload picture" — stores the file with Home Assistant's image upload and uses its URL */
+  _buildUpload() {
+    const box = document.createElement('div');
+    box.className = 'tc-upload';
+    box.innerHTML = `
+      <style>
+        .tc-upload { display:flex; gap:14px; align-items:center; margin:4px 0 16px; padding:12px; border-radius:12px;
+          border:1px dashed var(--divider-color, rgba(127,127,127,.4)); transition:background .2s, border-color .2s; }
+        .tc-upload.drag { background:rgba(79,140,255,.08); border-color:var(--primary-color); }
+        .tc-upload .thumb { width:112px; height:72px; flex:none; border-radius:10px; display:grid; place-items:center; overflow:hidden;
+          background:rgba(127,127,127,.12); color:var(--secondary-text-color); --mdc-icon-size:28px; }
+        .tc-upload .thumb img { max-width:100%; max-height:100%; object-fit:contain; }
+        .tc-upload .col { display:flex; flex-direction:column; gap:6px; min-width:0; }
+        .tc-upload .btns { display:flex; gap:8px; flex-wrap:wrap; }
+        .tc-upload button { font:inherit; font-size:.9em; font-weight:500; border:none; border-radius:999px; padding:7px 14px; cursor:pointer;
+          background:var(--primary-color, #03a9f4); color:var(--text-primary-color, #fff); display:inline-flex; align-items:center; gap:6px; --mdc-icon-size:18px; }
+        .tc-upload button.rm { background:rgba(127,127,127,.15); color:var(--primary-text-color); }
+        .tc-upload button:disabled { opacity:.5; cursor:default; }
+        .tc-upload .msg { font-size:.8em; color:var(--secondary-text-color); }
+        .tc-upload .msg.err { color:var(--error-color, #e5484d); }
+      </style>
+      <div class="thumb"></div>
+      <div class="col">
+        <div class="btns">
+          <button type="button" class="up"><ha-icon icon="mdi:upload"></ha-icon>Upload picture</button>
+          <button type="button" class="rm"><ha-icon icon="mdi:delete-outline"></ha-icon>Remove</button>
+        </div>
+        <div class="msg">PNG with a transparent background looks best. You can also drop a file here.</div>
+      </div>
+      <input type="file" accept="image/*" hidden>`;
+    const input = box.querySelector('input');
+    box.querySelector('.up').addEventListener('click', () => input.click());
+    box.querySelector('.rm').addEventListener('click', () => {
+      const cfg = { ...this._config };
+      delete cfg.image;
+      this._emit(cfg);
+    });
+    input.addEventListener('change', () => { if (input.files?.[0]) this._upload(input.files[0]); input.value = ''; });
+    box.addEventListener('dragover', (e) => { e.preventDefault(); box.classList.add('drag'); });
+    box.addEventListener('dragleave', () => box.classList.remove('drag'));
+    box.addEventListener('drop', (e) => {
+      e.preventDefault(); box.classList.remove('drag');
+      const f = e.dataTransfer?.files?.[0];
+      if (f) this._upload(f);
+    });
+    this._up = box;
+    this.appendChild(box);
+  }
+
+  _renderUpload(data) {
+    if (!this._up) return;
+    const show = data.model === 'custom';
+    this._up.style.display = show ? '' : 'none';
+    if (!show) return;
+    // keep the upload box straight after the picture fields
+    if (this._up.previousSibling !== this._form) this._form.after(this._up);
+    const thumb = this._up.querySelector('.thumb');
+    const img = typeof data.image === 'string' ? data.image : '';
+    const want = img && !img.startsWith('media-source://') ? img : '';
+    if (thumb.dataset.src !== want) {
+      thumb.dataset.src = want;
+      thumb.innerHTML = want ? `<img src="${esc(want)}" alt="">` : '<ha-icon icon="mdi:image-plus-outline"></ha-icon>';
+    }
+    this._up.querySelector('.rm').disabled = !img;
+  }
+
+  async _upload(file) {
+    const msg = this._up.querySelector('.msg');
+    const btn = this._up.querySelector('.up');
+    if (!file.type.startsWith('image/')) { msg.className = 'msg err'; msg.textContent = 'That file is not a picture.'; return; }
+    msg.className = 'msg'; msg.textContent = `Uploading ${file.name}…`; btn.disabled = true;
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const r = await this._hass.fetchWithAuth('/api/image/upload', { method: 'POST', body: fd });
+      if (!r.ok) throw new Error(r.status === 413 ? 'The picture is too large.' : `Upload failed (${r.status}).`);
+      const j = await r.json();
+      msg.textContent = 'Uploaded.';
+      this._emit({ ...this._config, model: 'custom', image: `/api/image/serve/${j.id}/original` });
+    } catch (err) {
+      msg.className = 'msg err';
+      msg.textContent = err.message || 'Upload failed.';
+    } finally {
+      btn.disabled = false;
+    }
   }
 }
 

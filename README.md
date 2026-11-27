@@ -85,11 +85,11 @@ HACS adds the dashboard resource for you, and shows new versions under **HACS �
 - Charge cable appears when plugged in, with animated energy flow while charging
 - Cabin glows orange or blue while climate is heating or cooling
 - Sentry mode perimeter, headlight flash animation, moving road while driving
-- Tyre pressures on each wheel, turning red on a TPMS warning
+- Tyre pressures on each wheel by default, turning red on a TPMS warning
 - Steering wheel and doors follow left- or right-hand drive
 
 **🖼️ Or your own picture**
-- Upload a photo or paste a URL; status chips, tyre pressures and a charging glow sit around it
+- Upload a photo straight from the card editor (or paste a URL); status chips, a tyre pressure panel and a charging glow sit around it
 
 **🔋 Battery & charging**
 - State of charge, range and charge-limit marker
@@ -134,7 +134,7 @@ The paint colour comes from the *Exterior color* sensor. To pick it yourself, se
 
 ## 🖼️ Your own picture
 
-Pick **Custom picture** in the editor, then upload a photo or paste a URL. In YAML:
+Pick **Custom picture** in the editor, then click **Upload picture** (or drop a file onto the upload box). The picture is stored in Home Assistant, so it works on every device. You can also paste a web URL or a `/local/` path instead. In YAML:
 
 ```yaml
 type: custom:teslemetry-card
@@ -145,13 +145,13 @@ image_height: 200
 
 A transparent PNG of your car side-on looks best. Put it in `/config/www/` and refer to it as `/local/...`, upload it in the editor, or use any web URL.
 
-With your own picture, open doors, windows, frunk, trunk, Sentry, climate and charging show as chips under the photo, and tyre pressures sit in its corners.
+With your own picture, open doors, windows, frunk, trunk, Sentry and climate show as chips under the photo, with a tyre pressure panel below it.
 
 ---
 
 ## 💡 Getting the most out of it
 
-Several Teslemetry entities are **disabled by default**. To light up everything on the card, enable these under **Settings → Devices & services → Teslemetry → your car**:
+Several Teslemetry entities are **disabled by default**. If the tyre pressure sensors are off, the card shows a reminder; tap it to jump straight to your car's device page. To light up everything on the card, enable these under **Settings → Devices & services → Teslemetry → your car**:
 
 - *Exterior color* (paint colour)
 - *Tire pressure* front/rear left/right, and the *Tire pressure warning* sensors
