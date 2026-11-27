@@ -106,6 +106,9 @@ HACS adds the dashboard resource for you, and shows new versions under **HACS �
 **ℹ️ Status**
 - Online/asleep, parked/driving with speed, location zone, a **Wake** chip when the car sleeps, odometer and software update
 
+**🎨 Colour schemes**
+- Seven built-in looks (Midnight, Studio Black, Glass, Aurora, Arctic, Sunset, Carbon), or follow your Home Assistant theme
+
 **⚙️ Easy setup**
 - Finds your car automatically, no configuration needed
 - Full visual editor
@@ -129,6 +132,33 @@ Choose **Car picture** in the editor, or set `model` in YAML:
 | `custom` | Your own picture (see below) |
 
 The paint colour comes from the *Exterior color* sensor. To pick it yourself, set `car_color` (for example `#1f3b6e`).
+
+---
+
+## 🎨 Colour schemes
+
+Pick a **Colour scheme** in the editor, or set `color_scheme` in YAML:
+
+![Colour schemes](https://github.com/mimikm/Teslemetry-Card/raw/main/images/color-schemes.png)
+
+| `color_scheme` | Look |
+| --- | --- |
+| `ha` (default) | Follows your Home Assistant theme |
+| `midnight` | Deep navy with a blue accent |
+| `studio` | Studio black with a red accent |
+| `glass` | Frosted glass, best over a dashboard background picture |
+| `aurora` | Purple-to-teal gradient with a teal accent |
+| `arctic` | Light and clean, for light dashboards |
+| `sunset` | Warm plum-to-amber gradient with an orange accent |
+| `carbon` | Carbon-fibre texture with a lime accent |
+
+Each scheme has its own accent colour. Set `accent_color` to override it:
+
+```yaml
+type: custom:teslemetry-card
+color_scheme: carbon
+accent_color: "#00e5ff"
+```
 
 ---
 
@@ -204,8 +234,9 @@ actions:
 | `model` | `auto` | Car picture: `auto`, `model_3`, `model_y`, `model_s`, `model_x`, `cybertruck` or `custom` ([Car pictures](#-car-pictures)) |
 | `image` | – | Your own picture for `model: custom`: an uploaded image, `/local/...` or a web URL |
 | `image_height` | `190` | Height of your own picture, in px |
+| `color_scheme` | `ha` | Card look: `ha`, `midnight`, `studio`, `glass`, `aurora`, `arctic`, `sunset` or `carbon` ([Colour schemes](#-colour-schemes)) |
 | `car_color` | from *Exterior color* | Paint colour, e.g. `#1f3b6e` |
-| `accent_color` | `#4f8cff` | Colour for highlights, buttons and sliders |
+| `accent_color` | scheme's accent | Colour for highlights, buttons and sliders |
 | `drive_side` | `auto` | `auto`, `lhd` or `rhd`. `auto` uses the *Right hand drive* sensor, then your Home Assistant country |
 | `show_tyres` | `true` | Tyre pressures |
 | `show_charging` | `true` | Battery and charging section |
