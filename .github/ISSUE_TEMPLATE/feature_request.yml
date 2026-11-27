@@ -1,0 +1,15 @@
+name: Feature request
+description: An idea for the card
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like the card to do?
+    validations:
+      required: true
+  - type: textarea
+    id: entities
+    attributes:
+      label: Teslemetry entities involved
+      description: Which entities would it use, if you know?
