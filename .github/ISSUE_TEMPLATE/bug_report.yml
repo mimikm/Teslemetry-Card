@@ -1,0 +1,40 @@
+name: Bug report
+description: Something on the card isn't working as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you expect to see, and what did you see instead? Screenshots help a lot.
+    validations:
+      required: true
+  - type: input
+    id: card_version
+    attributes:
+      label: Card version
+      description: Shown in the browser console when the card loads (TESLEMETRY-CARD vX.Y.Z)
+    validations:
+      required: true
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant version
+    validations:
+      required: true
+  - type: input
+    id: vehicle
+    attributes:
+      label: Vehicle
+      description: e.g. Model Y 2024, Cybertruck
+  - type: textarea
+    id: config
+    attributes:
+      label: Card configuration
+      description: Your card YAML (Edit card → Show code editor)
+      render: yaml
+  - type: textarea
+    id: entities
+    attributes:
+      label: Affected entities
+      description: Entity IDs and their states, if the problem is about a value on the card
