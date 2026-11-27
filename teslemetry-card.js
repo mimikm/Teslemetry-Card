@@ -4,7 +4,7 @@
  * MIT License · (c) Dominik Martyniak (mimikm)
  */
 
-const CARD_VERSION = '0.1.1';
+const CARD_VERSION = '0.2.0';
 
 /* ------------------------------------------------------------------ */
 /* Entity map: key -> [domain, entity_id suffixes, translation keys]   */
@@ -86,6 +86,43 @@ const CHARGING_LABELS = {
 const SHIFT_LABELS = { p: 'Parked', d: 'Driving', r: 'Reversing', n: 'Neutral' };
 
 const BAD = ['unavailable', 'unknown', '', undefined, null];
+
+/* ------------------------------------------------------------------ */
+/* Colour schemes                                                     */
+/* bg: card background · fg/fg2: text · tint: rgb used for tiles      */
+/* ------------------------------------------------------------------ */
+const SCHEMES = {
+  ha: { label: 'Home Assistant theme' },
+  midnight: {
+    label: 'Midnight', accent: '#5b8cff', fg: '#eef2ff', fg2: '#93a0bd', tint: '160,175,215',
+    bg: 'radial-gradient(120% 80% at 50% 0%, #1d2746 0%, #0e1322 55%, #090c14 100%)',
+  },
+  studio: {
+    label: 'Studio Black', accent: '#e82127', battery: '#e9e9ee', fg: '#f5f5f7', fg2: '#8e8e93', tint: '255,255,255',
+    bg: 'linear-gradient(180deg, #161618 0%, #0a0a0b 100%)',
+  },
+  glass: {
+    label: 'Glass', accent: '#7dd3fc', fg: '#ffffff', fg2: 'rgba(255,255,255,.72)', tint: '255,255,255',
+    bg: 'linear-gradient(135deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,.05) 100%)',
+    extra: 'backdrop-filter:blur(18px) saturate(150%); -webkit-backdrop-filter:blur(18px) saturate(150%); border:1px solid rgba(255,255,255,.2);',
+  },
+  aurora: {
+    label: 'Aurora', accent: '#34e0c0', fg: '#f1f5ff', fg2: '#a9b6d6', tint: '190,205,255',
+    bg: 'radial-gradient(90% 60% at 15% 0%, rgba(124,58,237,.45) 0%, transparent 60%), radial-gradient(80% 60% at 100% 100%, rgba(20,184,166,.35) 0%, transparent 60%), linear-gradient(160deg, #180f30 0%, #0f2236 55%, #0a2b2a 100%)',
+  },
+  arctic: {
+    label: 'Arctic (light)', accent: '#2563eb', fg: '#13202f', fg2: '#5d6b7c', tint: '40,70,110', light: true,
+    bg: 'linear-gradient(180deg, #ffffff 0%, #eaf1f8 100%)',
+  },
+  sunset: {
+    label: 'Sunset', accent: '#ff8a3d', battery: '#ffd9bf', fg: '#fff4ee', fg2: '#e3bcae', tint: '255,205,185',
+    bg: 'radial-gradient(100% 70% at 80% 0%, rgba(255,138,61,.35) 0%, transparent 60%), linear-gradient(165deg, #2a1230 0%, #46192d 50%, #5e2419 100%)',
+  },
+  carbon: {
+    label: 'Carbon', accent: '#c6ff3d', fg: '#f2f2f2', fg2: '#9a9da3', tint: '255,255,255',
+    bg: 'repeating-linear-gradient(45deg, rgba(255,255,255,.035) 0 2px, transparent 2px 5px), repeating-linear-gradient(-45deg, rgba(0,0,0,.35) 0 2px, transparent 2px 5px), linear-gradient(180deg, #1d1e21 0%, #111214 100%)',
+  },
+};
 
 /* ------------------------------------------------------------------ */
 /* Car models — top-down geometry in a 420×220 viewBox, nose → right. */
@@ -289,6 +326,7 @@ class TeslemetryCard extends HTMLElement {
       confirm_actions: true,
       drive_side: 'auto',
       model: 'auto',
+      color_scheme: 'ha',
       ...config,
     };
     this._resolvedFor = null;
@@ -411,8 +449,12 @@ class TeslemetryCard extends HTMLElement {
     return k ? PAINT[k] : '#c9ccd1';
   }
 
+  _scheme() {
+    return SCHEMES[this._config.color_scheme] || SCHEMES.ha;
+  }
+
   _accent() {
-    const c = toRgb(this._config.accent_color);
+    const c = toRgb(this._config.accent_color) || toRgb(this._scheme().accent);
     return c ? rgbHex(c) : '#4f8cff';
   }
 
@@ -528,7 +570,7 @@ class TeslemetryCard extends HTMLElement {
     /* battery */
     let batteryHtml = '';
     if (cfg.show_charging && soc != null) {
-      const col = charging || st.complete ? '#35d07f' : soc <= 10 ? '#e5484d' : soc <= 20 ? '#f5a524' : accent;
+      const col = charging || st.complete ? '#35d07f' : soc <= 10 ? '#e5484d' : soc <= 20 ? '#f5a524' : (this._scheme().battery || accent);
       const chgLabel = CHARGING_LABELS[chargingState] || '';
       const stats = [];
       if (charging) {
@@ -944,20 +986,26 @@ class TeslemetryCard extends HTMLElement {
 </svg>`;
   }
   _style(accent, accRgb) {
+    const sc = this._scheme();
+    const onAcc = luminance(accent) > 0.62 ? '#111' : '#fff';
+    const vars = sc.bg
+      ? `--tc-fg:${sc.fg}; --tc-fg2:${sc.fg2}; --tc-tint:${sc.tint}; --primary-text-color:${sc.fg}; --secondary-text-color:${sc.fg2};`
+      : '--tc-fg:var(--primary-text-color); --tc-fg2:var(--secondary-text-color); --tc-tint:127,127,127;';
+    const card = sc.bg ? `background:${sc.bg}; color:${sc.fg}; ${sc.extra || ''}` : '';
     return `<style>
-    :host { display:block; --tc-accent:${accent}; --tc-acc-rgb:${accRgb}; }
-    ha-card { display:block; position:relative; overflow:hidden; padding:16px 16px 14px; box-sizing:border-box; }
+    :host { display:block; --tc-accent:${accent}; --tc-acc-rgb:${accRgb}; --tc-on-acc:${onAcc}; ${vars} }
+    ha-card { display:block; position:relative; overflow:hidden; padding:16px 16px 14px; box-sizing:border-box; ${card} }
     .clickable { cursor:pointer; }
     .head { display:flex; align-items:center; gap:10px; }
     .title { flex:1; min-width:0; }
-    .name { font-size:1.35em; font-weight:600; letter-spacing:.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--primary-text-color); }
-    .sub { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:2px; font-size:.86em; color:var(--secondary-text-color); }
+    .name { font-size:1.35em; font-weight:600; letter-spacing:.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--tc-fg); }
+    .sub { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:2px; font-size:.86em; color:var(--tc-fg2); }
     .sep { opacity:.5; }
     .dot { width:8px; height:8px; border-radius:50%; background:#8b9098; display:inline-block; margin-right:2px; }
     .dot.on { background:#35d07f; box-shadow:0 0 0 3px rgba(53,208,127,.18); }
     button { font:inherit; color:inherit; -webkit-tap-highlight-color:transparent; }
     .lockbtn { width:46px; height:46px; flex:none; border-radius:15px; border:none; cursor:pointer; display:grid; place-items:center;
-      background:rgba(127,127,127,.13); color:var(--primary-text-color); transition:background .25s, transform .15s; --mdc-icon-size:24px; }
+      background:rgba(var(--tc-tint),.13); color:var(--tc-fg); transition:background .25s, transform .15s; --mdc-icon-size:24px; }
     .lockbtn.unlocked { background:rgba(245,165,36,.18); color:#f5a524; }
     .lockbtn:active, .act:active, .tbtn:active, .power:active, .chip:active { transform:scale(.94); }
     .chip { display:flex; align-items:center; gap:4px; border:none; border-radius:999px; padding:6px 12px 6px 8px; cursor:pointer;
@@ -973,34 +1021,34 @@ class TeslemetryCard extends HTMLElement {
     .photo.charging::after { background:radial-gradient(closest-side, rgba(53,208,127,.55), transparent); animation:tcBreath 2s ease-in-out infinite; }
     .photo.sentry { box-shadow:inset 0 0 0 1.5px rgba(229,72,77,.55); border-radius:18px; animation:tcBlink 2.4s ease-in-out infinite; }
     .photo img { position:relative; z-index:1; max-width:100%; max-height:100%; object-fit:contain; user-select:none; filter:drop-shadow(0 10px 14px rgba(0,0,0,.3)); }
-    .ph-empty { display:grid; place-items:center; width:100%; height:100%; border-radius:16px; border:1.5px dashed rgba(127,127,127,.35);
-      color:var(--secondary-text-color); --mdc-icon-size:40px; }
+    .ph-empty { display:grid; place-items:center; width:100%; height:100%; border-radius:16px; border:1.5px dashed rgba(var(--tc-tint),.35);
+      color:var(--tc-fg2); --mdc-icon-size:40px; }
     .ptyres { display:grid; grid-template-columns:1fr auto 1fr; grid-template-rows:auto auto; align-items:center; gap:6px 12px;
       max-width:300px; margin:8px auto 14px; }
     .ptyres .pt-car { grid-column:2; grid-row:1 / span 2; width:34px; height:58px; }
     .pt-car rect { fill:#2a2c31; } .pt-car rect.w { fill:#e5484d; }
-    .pt-car .body { fill:rgba(127,127,127,.28); stroke:rgba(127,127,127,.45); stroke-width:1; } .pt-car .glass { fill:rgba(0,0,0,.35); }
-    .pt { display:flex; flex-direction:column; line-height:1.15; padding:5px 10px; border-radius:12px; background:rgba(127,127,127,.1); cursor:pointer; }
+    .pt-car .body { fill:rgba(var(--tc-tint),.28); stroke:rgba(var(--tc-tint),.45); stroke-width:1; } .pt-car .glass { fill:rgba(0,0,0,.35); }
+    .pt { display:flex; flex-direction:column; line-height:1.15; padding:5px 10px; border-radius:12px; background:rgba(var(--tc-tint),.1); cursor:pointer; }
     .pt.fl, .pt.rl { text-align:right; align-items:flex-end; } .pt.fr, .pt.rr { align-items:flex-start; }
     .pt.fl { grid-column:1; grid-row:1; } .pt.fr { grid-column:3; grid-row:1; } .pt.rl { grid-column:1; grid-row:2; } .pt.rr { grid-column:3; grid-row:2; }
-    .pt small { font-size:.68em; font-weight:600; letter-spacing:.6px; color:var(--secondary-text-color); }
-    .pt b { font-size:.92em; font-weight:600; color:var(--primary-text-color); }
+    .pt small { font-size:.68em; font-weight:600; letter-spacing:.6px; color:var(--tc-fg2); }
+    .pt b { font-size:.92em; font-weight:600; color:var(--tc-fg); }
     .pt.warn { background:rgba(229,72,77,.16); } .pt.warn b, .pt.warn small { color:#e5484d; }
-    .pt.missing b { color:var(--secondary-text-color); font-weight:400; }
-    .tyre.missing text { fill:var(--secondary-text-color); } .tyre.missing rect { fill:rgba(127,127,127,.08); }
+    .pt.missing b { color:var(--tc-fg2); font-weight:400; }
+    .tyre.missing text { fill:var(--tc-fg2); } .tyre.missing rect { fill:rgba(var(--tc-tint),.08); }
     .hint { display:flex; align-items:center; gap:8px; margin:6px 0 2px; padding:8px 10px; border-radius:12px; cursor:pointer;
-      background:rgba(var(--tc-acc-rgb),.1); color:var(--secondary-text-color); font-size:.8em; --mdc-icon-size:18px; }
-    .hint ha-icon:first-child { color:var(--tc-accent); } .hint span { flex:1; } .hint b { color:var(--primary-text-color); font-weight:500; }
+      background:rgba(var(--tc-acc-rgb),.1); color:var(--tc-fg2); font-size:.8em; --mdc-icon-size:18px; }
+    .hint ha-icon:first-child { color:var(--tc-accent); } .hint span { flex:1; } .hint b { color:var(--tc-fg); font-weight:500; }
     .pchips { display:flex; flex-wrap:wrap; justify-content:center; gap:6px; margin:8px 10px 6px; }
     .pchip { display:inline-flex; align-items:center; gap:4px; padding:4px 10px 4px 7px; border-radius:999px; font-size:.78em; font-weight:500; cursor:pointer;
-      background:rgba(127,127,127,.13); color:var(--secondary-text-color); --mdc-icon-size:16px; }
+      background:rgba(var(--tc-tint),.13); color:var(--tc-fg2); --mdc-icon-size:16px; }
     .pchip.ok { background:rgba(53,208,127,.15); color:#2fbf73; } .pchip.acc { background:rgba(var(--tc-acc-rgb),.16); color:var(--tc-accent); }
     .pchip.warn { background:rgba(245,165,36,.17); color:#f5a524; } .pchip.danger { background:rgba(229,72,77,.15); color:#e5484d; }
     .pchip.heat { background:rgba(255,138,61,.16); color:#ff8a3d; } .pchip.cool { background:rgba(79,179,255,.16); color:#4fb3ff; }
     .door { transition:transform .6s cubic-bezier(.3,1.4,.5,1); }
     .glow { filter:drop-shadow(0 0 3px var(--tc-accent)); }
-    .tyre rect { fill:rgba(127,127,127,.16); stroke:rgba(127,127,127,.25); stroke-width:.8; }
-    .tyre text { fill:var(--primary-text-color); font-size:11px; font-weight:500; font-family:inherit; }
+    .tyre rect { fill:rgba(var(--tc-tint),.16); stroke:rgba(var(--tc-tint),.25); stroke-width:.8; }
+    .tyre text { fill:var(--tc-fg); font-size:11px; font-weight:500; font-family:inherit; }
     .tyre.warn rect { fill:rgba(229,72,77,.22); stroke:#e5484d; }
     .tyre.warn text { fill:#e5484d; }
     .flow { stroke-dasharray:6 10; animation:tcFlow .7s linear infinite; }
@@ -1010,55 +1058,55 @@ class TeslemetryCard extends HTMLElement {
     .sentry { stroke-dasharray:3 9; opacity:.75; animation:tcFlow 3s linear infinite, tcBlink 2.4s ease-in-out infinite; }
     .cabin-glow { animation:tcBreath 3s ease-in-out infinite; }
     .air path { stroke-dasharray:4 6; animation:tcFlowRev 1.2s linear infinite; opacity:.85; }
-    .road line { stroke:rgba(127,127,127,.35); stroke-width:2; stroke-dasharray:22 18; animation:tcRoad .5s linear infinite; }
+    .road line { stroke:rgba(var(--tc-tint),.35); stroke-width:2; stroke-dasharray:22 18; animation:tcRoad .5s linear infinite; }
 
     .battery { margin-top:4px; }
     .bat-head { display:flex; align-items:flex-end; gap:16px; }
-    .soc { font-size:2.5em; font-weight:300; line-height:1; color:var(--primary-text-color); letter-spacing:-1px; }
-    .soc span { font-size:.45em; color:var(--secondary-text-color); margin-left:2px; letter-spacing:0; }
-    .range { display:flex; flex-direction:column; color:var(--secondary-text-color); font-size:.95em; line-height:1.15; padding-bottom:2px; }
-    .range b { color:var(--primary-text-color); font-weight:600; font-size:1.15em; }
+    .soc { font-size:2.5em; font-weight:300; line-height:1; color:var(--tc-fg); letter-spacing:-1px; }
+    .soc span { font-size:.45em; color:var(--tc-fg2); margin-left:2px; letter-spacing:0; }
+    .range { display:flex; flex-direction:column; color:var(--tc-fg2); font-size:.95em; line-height:1.15; padding-bottom:2px; }
+    .range b { color:var(--tc-fg); font-weight:600; font-size:1.15em; }
     .range small { font-size:.75em; text-transform:uppercase; letter-spacing:.6px; opacity:.75; }
     .cstate { margin-left:auto; display:flex; align-items:center; gap:4px; padding:5px 10px 5px 7px; border-radius:999px; font-size:.82em; font-weight:500;
-      background:rgba(127,127,127,.13); color:var(--secondary-text-color); --mdc-icon-size:17px; cursor:pointer; }
+      background:rgba(var(--tc-tint),.13); color:var(--tc-fg2); --mdc-icon-size:17px; cursor:pointer; }
     .cstate.charging, .cstate.complete { background:rgba(53,208,127,.15); color:#2fbf73; }
-    .bar { position:relative; height:10px; margin-top:12px; border-radius:6px; background:rgba(127,127,127,.18); }
+    .bar { position:relative; height:10px; margin-top:12px; border-radius:6px; background:rgba(var(--tc-tint),.18); }
     .fill { position:absolute; left:0; top:0; bottom:0; border-radius:6px; transition:width .8s ease;
       background:linear-gradient(90deg, color-mix(in srgb, var(--fill) 70%, #000) 0%, var(--fill) 100%); background-color:var(--fill);
       box-shadow:0 0 12px -2px var(--fill); }
     .fill.charging { background-image:repeating-linear-gradient(-45deg, rgba(255,255,255,.28) 0 7px, transparent 7px 14px), linear-gradient(90deg, var(--fill), var(--fill));
       background-size:19.8px 19.8px, 100% 100%; animation:tcStripes .8s linear infinite; }
-    .limit { position:absolute; top:-4px; bottom:-4px; width:3px; margin-left:-1.5px; border-radius:2px; background:var(--primary-text-color); opacity:.55; }
-    .stats { display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:10px; font-size:.84em; color:var(--secondary-text-color); }
+    .limit { position:absolute; top:-4px; bottom:-4px; width:3px; margin-left:-1.5px; border-radius:2px; background:var(--tc-fg); opacity:.55; }
+    .stats { display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:10px; font-size:.84em; color:var(--tc-fg2); }
     .stats span, .foot span { display:inline-flex; align-items:center; gap:4px; --mdc-icon-size:16px; }
     .stats ha-icon { color:#2fbf73; }
-    .limit-row { display:flex; align-items:center; gap:8px; margin-top:10px; font-size:.86em; color:var(--secondary-text-color); --mdc-icon-size:18px; }
+    .limit-row { display:flex; align-items:center; gap:8px; margin-top:10px; font-size:.86em; color:var(--tc-fg2); --mdc-icon-size:18px; }
     .limit-row span { white-space:nowrap; }
     .limit-row input { flex:1; min-width:60px; accent-color:var(--tc-accent); height:20px; }
-    .limit-row b { min-width:44px; text-align:right; color:var(--primary-text-color); font-weight:600; }
+    .limit-row b { min-width:44px; text-align:right; color:var(--tc-fg); font-weight:600; }
 
     .climate { display:flex; align-items:center; gap:16px; margin-top:14px; padding:10px 10px 10px 14px; border-radius:16px;
-      background:rgba(127,127,127,.08); transition:background .4s; }
-    .climate.heat { background:linear-gradient(90deg, rgba(255,138,61,.14), rgba(127,127,127,.06)); }
-    .climate.cool { background:linear-gradient(90deg, rgba(79,179,255,.14), rgba(127,127,127,.06)); }
+      background:rgba(var(--tc-tint),.08); transition:background .4s; }
+    .climate.heat { background:linear-gradient(90deg, rgba(255,138,61,.14), rgba(var(--tc-tint),.06)); }
+    .climate.cool { background:linear-gradient(90deg, rgba(79,179,255,.14), rgba(var(--tc-tint),.06)); }
     .temp { display:flex; flex-direction:column; line-height:1.2; }
-    .temp small, .tval small { font-size:.72em; text-transform:uppercase; letter-spacing:.6px; color:var(--secondary-text-color); }
-    .temp b { font-size:1.08em; font-weight:600; color:var(--primary-text-color); }
+    .temp small, .tval small { font-size:.72em; text-transform:uppercase; letter-spacing:.6px; color:var(--tc-fg2); }
+    .temp b { font-size:1.08em; font-weight:600; color:var(--tc-fg); }
     .target { margin-left:auto; display:flex; align-items:center; gap:6px; }
     .tval { display:flex; flex-direction:column; align-items:center; min-width:52px; line-height:1.15; }
-    .tval b { font-size:1.25em; font-weight:600; color:var(--primary-text-color); }
+    .tval b { font-size:1.25em; font-weight:600; color:var(--tc-fg); }
     .climate.heat .tval small { color:#ff8a3d; } .climate.cool .tval small { color:#4fb3ff; }
     .tbtn, .power { width:34px; height:34px; border-radius:50%; border:none; cursor:pointer; display:grid; place-items:center;
-      background:rgba(127,127,127,.14); color:var(--primary-text-color); --mdc-icon-size:18px; transition:transform .15s, background .25s; }
+      background:rgba(var(--tc-tint),.14); color:var(--tc-fg); --mdc-icon-size:18px; transition:transform .15s, background .25s; }
     .tbtn:disabled { opacity:.35; cursor:default; }
-    .power.on { background:var(--tc-accent); color:#fff; box-shadow:0 0 14px -2px var(--tc-accent); }
+    .power.on { background:var(--tc-accent); color:var(--tc-on-acc); box-shadow:0 0 14px -2px var(--tc-accent); }
 
     .actions { display:grid; grid-template-columns:repeat(auto-fill, minmax(64px, 1fr)); gap:8px; margin-top:14px; }
     .act { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; min-height:62px; padding:8px 4px; border:none;
-      border-radius:16px; cursor:pointer; background:rgba(127,127,127,.1); color:var(--primary-text-color); font-size:.72em; line-height:1.1;
+      border-radius:16px; cursor:pointer; background:rgba(var(--tc-tint),.1); color:var(--tc-fg); font-size:.72em; line-height:1.1;
       --mdc-icon-size:22px; transition:background .25s, color .25s, transform .15s; text-align:center; }
     .act span { opacity:.9; }
-    .act:hover { background:rgba(127,127,127,.17); }
+    .act:hover { background:rgba(var(--tc-tint),.17); }
     .act.on { background:rgba(var(--tc-acc-rgb),.17); color:var(--tc-accent); }
     .act.ok { background:rgba(53,208,127,.16); color:#2fbf73; }
     .act.warn { background:rgba(245,165,36,.17); color:#f5a524; }
@@ -1066,9 +1114,9 @@ class TeslemetryCard extends HTMLElement {
     .act.spin ha-icon { animation:tcSpin 2.4s linear infinite; }
     .act:disabled { opacity:.35; cursor:default; }
 
-    .foot { display:flex; flex-wrap:wrap; gap:6px 16px; margin-top:12px; font-size:.8em; color:var(--secondary-text-color); }
+    .foot { display:flex; flex-wrap:wrap; gap:6px 16px; margin-top:12px; font-size:.8em; color:var(--tc-fg2); }
     .foot .upd { color:var(--tc-accent); font-weight:500; }
-    .empty { display:flex; gap:14px; align-items:center; padding:8px; color:var(--secondary-text-color); --mdc-icon-size:36px; }
+    .empty { display:flex; gap:14px; align-items:center; padding:8px; color:var(--tc-fg2); --mdc-icon-size:36px; }
     .empty code { font-size:.9em; }
 
     @keyframes tcFlow { to { stroke-dashoffset:-16; } }
@@ -1243,6 +1291,7 @@ const editorSchema = (data) => [
   { name: 'device_id', selector: { device: { filter: { integration: 'teslemetry' } } } },
   { name: 'name', selector: { text: {} } },
   { name: 'model', selector: { select: { mode: 'dropdown', options: MODEL_OPTIONS } } },
+  { name: 'color_scheme', selector: { select: { mode: 'dropdown', options: Object.entries(SCHEMES).map(([value, v]) => ({ value, label: v.label })) } } },
   ...(data.model === 'custom' ? [
     { name: 'image', selector: { text: {} } },
     { name: 'image_height', selector: { number: { min: 100, max: 400, step: 10, mode: 'slider', unit_of_measurement: 'px' } } },
@@ -1281,7 +1330,7 @@ const editorSchema = (data) => [
 const EDITOR_LABELS = {
   device_id: 'Vehicle', name: 'Name (optional)', car_color: 'Paint colour (optional, e.g. #1f3b6e)',
   accent_color: 'Accent colour (optional)', drive_side: 'Drive side',
-  model: 'Car picture', image: 'Picture URL or /local/ path (or upload below)', image_height: 'Picture height',
+  model: 'Car picture', color_scheme: 'Colour scheme', image: 'Picture URL or /local/ path (or upload below)', image_height: 'Picture height',
   show_tyres: 'Tyre pressures', show_charging: 'Battery & charging', show_charge_limit: 'Charge limit slider',
   show_charge_current: 'Charge current slider', show_climate: 'Climate', show_actions: 'Buttons',
   show_footer: 'Footer (odometer, software)', confirm_actions: 'Tap twice to unlock / open', actions: 'Buttons to show',
@@ -1314,6 +1363,7 @@ class TeslemetryCardEditor extends HTMLElement {
         Object.keys(cfg).forEach((k) => { if (cfg[k] === '' || cfg[k] === undefined || cfg[k] === null) delete cfg[k]; });
         if (cfg.model !== 'custom') { delete cfg.image; delete cfg.image_height; }
         if (cfg.model === 'auto') delete cfg.model;
+        if (cfg.color_scheme === 'ha') delete cfg.color_scheme;
         this._emit(cfg);
       });
       this.appendChild(this._form);
@@ -1322,7 +1372,7 @@ class TeslemetryCardEditor extends HTMLElement {
     const data = {
       show_tyres: true, show_charging: true, show_charge_limit: true, show_charge_current: false,
       show_climate: true, show_actions: true, show_footer: true, confirm_actions: true,
-      drive_side: 'auto', model: this._config.image && !this._config.model ? 'custom' : 'auto', image_height: 190,
+      drive_side: 'auto', model: this._config.image && !this._config.model ? 'custom' : 'auto', image_height: 190, color_scheme: 'ha',
       actions: DEFAULT_ACTIONS, ...this._config,
     };
     this._form.hass = this._hass;
