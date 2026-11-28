@@ -4,7 +4,7 @@
  * MIT License · (c) Dominik Martyniak (mimikm)
  */
 
-const CARD_VERSION = '0.2.0';
+const CARD_VERSION = '0.2.1';
 
 /* ------------------------------------------------------------------ */
 /* Entity map: key -> [domain, entity_id suffixes, translation keys]   */
@@ -244,17 +244,28 @@ const MODEL_KEYS = Object.keys(CAR_MODELS);
 /* ------------------------------------------------------------------ */
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+/** Parses #rgb, #rrggbb, rgb()/rgba() or [r, g, b]. Returns three finite numbers, or null. */
 function toRgb(color) {
   if (!color) return null;
-  if (Array.isArray(color)) return color.slice(0, 3).map(Number);
-  let c = String(color).trim();
-  const m = c.match(/^rgba?\(([^)]+)\)$/i);
-  if (m) return m[1].split(',').slice(0, 3).map((v) => parseFloat(v));
-  if (c[0] === '#') c = c.slice(1);
-  if (c.length === 3) c = c.split('').map((x) => x + x).join('');
-  if (!/^[0-9a-f]{6}$/i.test(c)) return null;
-  return [0, 2, 4].map((i) => parseInt(c.slice(i, i + 2), 16));
+  let rgb = null;
+  if (Array.isArray(color)) {
+    rgb = color.slice(0, 3).map(Number);
+  } else {
+    let c = String(color).trim();
+    const m = c.match(/^rgba?\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)\s*(?:,\s*[0-9.]+\s*)?\)$/i);
+    if (m) {
+      rgb = [m[1], m[2], m[3]].map(Number);
+    } else {
+      if (c[0] === '#') c = c.slice(1);
+      if (c.length === 3) c = c.split('').map((x) => x + x).join('');
+      if (!/^[0-9a-f]{6}$/i.test(c)) return null;
+      rgb = [0, 2, 4].map((i) => parseInt(c.slice(i, i + 2), 16));
+    }
+  }
+  return rgb.length === 3 && rgb.every((v) => Number.isFinite(v)) ? rgb : null;
 }
+/** A finite number, or the fallback */
+const num = (v, fallback) => { const n = Number(v); return v !== null && v !== '' && Number.isFinite(n) ? n : fallback; };
 const rgbHex = (rgb) => '#' + rgb.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
 /** amt > 0 mixes toward white, < 0 toward black */
 function shade(hex, amt) {
@@ -442,7 +453,8 @@ class TeslemetryCard extends HTMLElement {
   }
 
   _paint() {
-    if (this._config.car_color) return toRgb(this._config.car_color) ? rgbHex(toRgb(this._config.car_color)) : this._config.car_color;
+    const custom = toRgb(this._config.car_color);
+    if (custom) return rgbHex(custom);
     const ext = (this._v('exterior_color') || '').toLowerCase().replace(/[^a-z]/g, '');
     if (PAINT[ext]) return PAINT[ext];
     const k = Object.keys(PAINT).find((p) => ext && (ext.includes(p) || p.includes(ext)));
@@ -585,12 +597,12 @@ class TeslemetryCard extends HTMLElement {
       if ((charging || st.complete) && ea != null && ea > 0) stats.push(`<span><ha-icon icon="mdi:battery-plus-variant"></ha-icon>+${ea.toFixed(1)} ${esc(this._u('energy_added') || 'kWh')}</span>`);
 
       const lim = this._s('charge_limit');
-      const limMin = lim?.attributes?.min ?? 50;
-      const limMax = lim?.attributes?.max ?? 100;
+      const limMin = num(lim?.attributes?.min, 50);
+      const limMax = num(lim?.attributes?.max, 100);
       const limitRow = cfg.show_charge_limit && limit != null ? `
         <div class="limit-row">
           <ha-icon icon="mdi:battery-arrow-up-outline"></ha-icon><span>Charge limit</span>
-          <input type="range" data-num="charge_limit" min="${limMin}" max="${limMax}" step="${lim?.attributes?.step ?? 1}" value="${limit}">
+          <input type="range" data-num="charge_limit" min="${limMin}" max="${limMax}" step="${num(lim?.attributes?.step, 1)}" value="${num(limit, 80)}">
           <b data-out="charge_limit">${Math.round(limit)}%</b>
         </div>` : '';
       const cur = this._s('charge_current');
@@ -598,7 +610,7 @@ class TeslemetryCard extends HTMLElement {
       const currentRow = cfg.show_charge_current && curVal != null ? `
         <div class="limit-row">
           <ha-icon icon="mdi:current-ac"></ha-icon><span>Charge current</span>
-          <input type="range" data-num="charge_current" min="${cur.attributes.min ?? 0}" max="${cur.attributes.max ?? 32}" step="${cur.attributes.step ?? 1}" value="${curVal}">
+          <input type="range" data-num="charge_current" min="${num(cur.attributes.min, 0)}" max="${num(cur.attributes.max, 32)}" step="${num(cur.attributes.step, 1)}" value="${num(curVal, 16)}">
           <b data-out="charge_current">${Math.round(curVal)} A</b>
         </div>` : '';
 
@@ -623,7 +635,7 @@ class TeslemetryCard extends HTMLElement {
     if (cfg.show_climate && (climate || inside != null)) {
       const out = this._n('outside_temp');
       const tu = this._u('inside_temp') || this._hass.config?.unit_system?.temperature || '°C';
-      const step = climate?.attributes?.target_temp_step || (tu.includes('F') ? 1 : 0.5);
+      const step = num(climate?.attributes?.target_temp_step, 0) || (tu.includes('F') ? 1 : 0.5);
       const mode = climateOn ? (heating ? 'heat' : 'cool') : '';
       climateHtml = `
       <div class="climate ${mode}">
